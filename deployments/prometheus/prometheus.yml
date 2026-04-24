@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: api-gateway
+    static_configs:
+      - targets: ["api-gateway:8080"]
+  - job_name: auth-org-service
+    static_configs:
+      - targets: ["auth-org-service:8081"]
+  - job_name: project-key-service
+    static_configs:
+      - targets: ["project-key-service:8082"]
+  - job_name: limits-service
+    static_configs:
+      - targets: ["limits-service:8083"]
+  - job_name: provider-catalog-service
+    static_configs:
+      - targets: ["provider-catalog-service:8084"]
+  - job_name: audit-analytics-service
+    static_configs:
+      - targets: ["audit-analytics-service:8085"]
