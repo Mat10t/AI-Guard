@@ -154,6 +154,9 @@
   - `00-11-git-workflow-branch-pr-enforcement.md`
   - зависимости и порядок: `00-11 -> применяется как process-gate ко всем новым задачам`
 
+- Расширения MVP+: Postman collections для API-задач:
+  - `09-25-postman-collections-api-contracts.md`
+
 ### Можно отложить после MVP
 - `01-04-observability-dashboards-advanced.md`
 - `02-04-gateway-streaming-response.md`
