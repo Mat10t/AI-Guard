@@ -31,6 +31,19 @@
 - `08-frontend` зависит от готовых REST API из `03/04/05/06/07`.
 - `09-testing` выполняется итеративно, финальный e2e проход после интеграции всех сервисов.
 
+## Git Workflow (для новых задач)
+- Правило: `1 задача = 1 ветка = 1 PR`.
+- Нельзя начинать реализацию без task-id из имени файла задачи.
+- Формат ветки: `feat/<task-id>-<slug>` или `fix/<task-id>-<slug>`.
+- Формат commit message: `<task-id>: ...`.
+- В PR запрещено смешивать несколько задач.
+- В каждой новой задаче обязательны service-поля:
+  - `Branch:`
+  - `PR:`
+  - `Merged at:`
+- Шаблон новой задачи: `tasks/TEMPLATE.md`.
+- Шаблон PR: `.github/pull_request_template.md`.
+
 ## MVP vs отложенное
 ### Обязательно для MVP
 - Все задачи `00-01` .. `09-03`.
@@ -137,6 +150,9 @@
   - `08-36-copy-anytime-and-hide-revoked-everywhere.md`
   - `09-24-active-key-copy-hide-revoked-regression.md`
   - зависимости и порядок: `00-10 -> 04-08 -> 08-36 -> 09-24`
+- Расширения MVP+: Git workflow enforcement (`1 задача = 1 ветка = 1 PR`):
+  - `00-11-git-workflow-branch-pr-enforcement.md`
+  - зависимости и порядок: `00-11 -> применяется как process-gate ко всем новым задачам`
 
 ### Можно отложить после MVP
 - `01-04-observability-dashboards-advanced.md`
