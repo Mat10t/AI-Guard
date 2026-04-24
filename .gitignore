@@ -4,12 +4,12 @@ dist/
 *.test
 *.out
 coverage.out
-api-gateway
-auth-org-service
-project-key-service
-limits-service
-provider-catalog-service
-audit-analytics-service
+/api-gateway
+/auth-org-service
+/project-key-service
+/limits-service
+/provider-catalog-service
+/audit-analytics-service
 
 # Node / Next
 node_modules/
