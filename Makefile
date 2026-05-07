@@ -1,4 +1,4 @@
-.PHONY: build test unit integration e2e smoke up down rebuild tidy
+.PHONY: build test unit integration e2e smoke load-test up down rebuild tidy
 
 SERVICES := auth-org-service project-key-service limits-service provider-catalog-service audit-analytics-service api-gateway
 GOENV := PATH=/usr/local/go/bin:$$PATH GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod
@@ -23,6 +23,10 @@ e2e:
 
 smoke:
 	./scripts/smoke.sh
+
+load-test:
+	bash ./scripts/load_test_prepare.sh
+	bash ./scripts/load_test_run.sh
 
 tidy:
 	@$(GOENV) go mod tidy

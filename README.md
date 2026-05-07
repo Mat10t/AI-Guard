@@ -36,6 +36,7 @@
 - `make integration` — integration smoke/API-тесты
 - `make e2e` — критические e2e-сценарии MVP
 - `make smoke` — shell smoke runner (register -> project -> key -> gateway -> limit -> revoke)
+- `make load-test` — базовые нагрузочные тесты публичного API (k6)
 - `make build` — сборка сервисов
 - `make up` — запуск окружения
 - `make down` — остановка окружения

@@ -137,9 +137,12 @@
   - `08-36-copy-anytime-and-hide-revoked-everywhere.md`
   - `09-24-active-key-copy-hide-revoked-regression.md`
   - зависимости и порядок: `00-10 -> 04-08 -> 08-36 -> 09-24`
+- Расширения MVP+: нагрузочные тесты публичного API:
+  - `09-26-k6-public-api-load-tests.md`
+  - зависимости и порядок: `00-12 -> 09-26`
 
 ### Можно отложить после MVP
 - `01-04-observability-dashboards-advanced.md`
 - `02-04-gateway-streaming-response.md`
 - `07-02-multi-fallback-chain.md`
-- `09-04-load-tests-k6.md`
+- `09-04-load-tests-k6.md` (superseded by `09-26-k6-public-api-load-tests.md`)
