@@ -1,4 +1,5 @@
-.PHONY: build test unit integration e2e smoke load-test up down rebuild tidy
+.PHONY: build test unit integration e2e smoke postman load-test sonar-scan up down rebuild tidy install-hooks
+
 
 SERVICES := auth-org-service project-key-service limits-service provider-catalog-service audit-analytics-service api-gateway
 GOENV := PATH=/usr/local/go/bin:$$PATH GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod
@@ -27,9 +28,18 @@ smoke:
 load-test:
 	bash ./scripts/load_test_prepare.sh
 	bash ./scripts/load_test_run.sh
+sonar-scan:
+	bash ./scripts/sonar_scan.sh
+postman:
+	./scripts/postman_smoke.sh
 
 tidy:
 	@$(GOENV) go mod tidy
+
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/commit-msg scripts/start-task-branch.sh
+	@echo "Git hooks installed. commit-msg rule is active."
 
 up:
 	docker compose up -d --build
