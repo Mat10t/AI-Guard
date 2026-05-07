@@ -28,3 +28,4 @@ out/
 # Docker
 *.log
 .tmp/
+.scannerwork/

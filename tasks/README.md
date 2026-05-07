@@ -137,6 +137,9 @@
   - `08-36-copy-anytime-and-hide-revoked-everywhere.md`
   - `09-24-active-key-copy-hide-revoked-regression.md`
   - зависимости и порядок: `00-10 -> 04-08 -> 08-36 -> 09-24`
+- Расширения MVP+: SonarQube в локальном стеке:
+  - `01-05-sonarqube-in-local-stack.md`
+  - зависимости и порядок: `00-12 -> 01-05`
 
 ### Можно отложить после MVP
 - `01-04-observability-dashboards-advanced.md`
