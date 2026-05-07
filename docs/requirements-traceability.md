@@ -17,3 +17,6 @@
 
 ## Good Grade Evidence (static analysis)
 - Static analysis/security gate: `make quality` + `make sonar-scan` + report `docs/reports/static-analysis-latest.md`
+## Postman Collections (API tasks)
+- Public/internal API task collection: `postman/LLM-Gateway-MVP.postman_collection.json`
+- Local environment: `postman/LLM-Gateway-Local.postman_environment.json`
