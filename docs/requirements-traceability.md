@@ -14,3 +14,7 @@
 - Billing/tariffs/payments
 - SSO/2FA/password recovery
 - Multi-step fallback chain
+
+## Postman Collections (API tasks)
+- Public/internal API task collection: `postman/LLM-Gateway-MVP.postman_collection.json`
+- Local environment: `postman/LLM-Gateway-Local.postman_environment.json`
