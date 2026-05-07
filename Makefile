@@ -1,5 +1,4 @@
-
-.PHONY: build test unit integration e2e smoke postman up down rebuild tidy install-hooks
+.PHONY: build test unit integration e2e smoke postman sonar-scan up down rebuild tidy install-hooks
 
 
 SERVICES := auth-org-service project-key-service limits-service provider-catalog-service audit-analytics-service api-gateway
@@ -26,6 +25,8 @@ e2e:
 smoke:
 	./scripts/smoke.sh
 
+sonar-scan:
+	bash ./scripts/sonar_scan.sh
 postman:
 	./scripts/postman_smoke.sh
 

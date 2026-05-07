@@ -150,6 +150,9 @@
   - `08-36-copy-anytime-and-hide-revoked-everywhere.md`
   - `09-24-active-key-copy-hide-revoked-regression.md`
   - зависимости и порядок: `00-10 -> 04-08 -> 08-36 -> 09-24`
+- Расширения MVP+: SonarQube в локальном стеке:
+  - `01-05-sonarqube-in-local-stack.md`
+  - зависимости и порядок: `00-12 -> 01-05`
 - Расширения MVP+: Git workflow enforcement (`1 задача = 1 ветка = 1 PR`):
   - `00-11-git-workflow-branch-pr-enforcement.md`
   - зависимости и порядок: `00-11 -> применяется как process-gate ко всем новым задачам`
