@@ -36,6 +36,7 @@
 - `make integration` — integration smoke/API-тесты
 - `make e2e` — критические e2e-сценарии MVP
 - `make smoke` — shell smoke runner (register -> project -> key -> gateway -> limit -> revoke)
+- `make quality` — локальный quality/security проход (`go vet` + `govulncheck` + `go test -coverprofile`)
 - `make load-test` — базовые нагрузочные тесты публичного API (k6)
 - `make postman` — запуск Postman-коллекции через Newman (если установлен `newman`)
 - `make build` — сборка сервисов

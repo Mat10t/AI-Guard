@@ -150,6 +150,9 @@
   - `08-36-copy-anytime-and-hide-revoked-everywhere.md`
   - `09-24-active-key-copy-hide-revoked-regression.md`
   - зависимости и порядок: `00-10 -> 04-08 -> 08-36 -> 09-24`
+- Расширения MVP+: quality/security gate:
+  - `09-27-static-analysis-and-security-gate.md`
+  - зависимости и порядок: `00-12 -> 01-05 -> 09-27`
 - Расширения MVP+: нагрузочные тесты публичного API:
   - `09-26-k6-public-api-load-tests.md`
   - зависимости и порядок: `00-12 -> 09-26`
