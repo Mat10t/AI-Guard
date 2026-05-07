@@ -157,6 +157,10 @@
 - Расширения MVP+: Postman collections для API-задач:
   - `09-25-postman-collections-api-contracts.md`
 
+- Расширения MVP+: закрытие требований на «хорошо» (матрица соответствия):
+  - `00-12-good-grade-closure-matrix.md`
+  - зависимости и порядок: `00-12 -> (01-05 + 09-26 + 09-27)`
+
 ### Можно отложить после MVP
 - `01-04-observability-dashboards-advanced.md`
 - `02-04-gateway-streaming-response.md`
