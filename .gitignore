@@ -28,3 +28,6 @@ out/
 # Docker
 *.log
 .tmp/
+docs/reports/artifacts/*.json
+docs/reports/artifacts/*.log
+docs/reports/artifacts/load-test.env

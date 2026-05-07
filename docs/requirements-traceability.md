@@ -14,3 +14,6 @@
 - Billing/tariffs/payments
 - SSO/2FA/password recovery
 - Multi-step fallback chain
+
+## Good Grade Evidence (static analysis)
+- Static analysis/security gate: `make quality` + `make sonar-scan` + report `docs/reports/static-analysis-latest.md`

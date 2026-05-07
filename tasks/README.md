@@ -137,6 +137,9 @@
   - `08-36-copy-anytime-and-hide-revoked-everywhere.md`
   - `09-24-active-key-copy-hide-revoked-regression.md`
   - зависимости и порядок: `00-10 -> 04-08 -> 08-36 -> 09-24`
+- Расширения MVP+: quality/security gate:
+  - `09-27-static-analysis-and-security-gate.md`
+  - зависимости и порядок: `00-12 -> 01-05 -> 09-27`
 
 ### Можно отложить после MVP
 - `01-04-observability-dashboards-advanced.md`
