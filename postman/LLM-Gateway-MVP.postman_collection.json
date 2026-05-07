@@ -1,0 +1,460 @@
+{
+  "info": {
+    "_postman_id": "b4ef52cd-314a-4f88-9f47-9d5fd7eb8d11",
+    "name": "LLM Gateway MVP API Tasks",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "API task collection for MVP public and internal contracts"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('admin_password')) {",
+          "  pm.collectionVariables.set('admin_password', 'password123');",
+          "}",
+          "if (!pm.collectionVariables.get('billing_model')) {",
+          "  pm.collectionVariables.set('billing_model', 'gpt-5.4-mini');",
+          "}",
+          "if (!pm.collectionVariables.get('fallback_model')) {",
+          "  pm.collectionVariables.set('fallback_model', 'mock-fast');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "org_name", "value": "" },
+    { "key": "admin_email", "value": "" },
+    { "key": "admin_password", "value": "password123" },
+    { "key": "access_token", "value": "" },
+    { "key": "org_id", "value": "" },
+    { "key": "admin_user_id", "value": "" },
+    { "key": "project_id", "value": "" },
+    { "key": "api_key", "value": "" },
+    { "key": "key_id", "value": "" },
+    { "key": "revoked_api_key", "value": "" },
+    { "key": "revoked_key_id", "value": "" },
+    { "key": "invitation_token", "value": "" },
+    { "key": "dev_access_token", "value": "" },
+    { "key": "dev_user_id", "value": "" },
+    { "key": "billing_model", "value": "gpt-5.4-mini" },
+    { "key": "fallback_model", "value": "mock-fast" }
+  ],
+  "item": [
+    {
+      "name": "00 Health",
+      "item": [
+        {
+          "name": "Gateway health",
+          "request": { "method": "GET", "url": "{{gateway_url}}/healthz" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }]
+        },
+        {
+          "name": "Auth health",
+          "request": { "method": "GET", "url": "{{auth_url}}/healthz" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }]
+        },
+        {
+          "name": "Project service health",
+          "request": { "method": "GET", "url": "{{project_url}}/healthz" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }]
+        },
+        {
+          "name": "Limits health",
+          "request": { "method": "GET", "url": "{{limits_url}}/healthz" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }]
+        },
+        {
+          "name": "Catalog health",
+          "request": { "method": "GET", "url": "{{catalog_url}}/healthz" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }]
+        },
+        {
+          "name": "Analytics health",
+          "request": { "method": "GET", "url": "{{analytics_url}}/healthz" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth bootstrap",
+      "item": [
+        {
+          "name": "Register org admin",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.collectionVariables.set('admin_email', `postman_admin_${ts}@example.com`);",
+                  "pm.collectionVariables.set('org_name', `Postman Org ${ts}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(201);",
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', data.access_token);",
+                  "pm.collectionVariables.set('org_id', data.org_id);",
+                  "pm.collectionVariables.set('admin_user_id', data.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"org_name\": \"{{org_name}}\",\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": "{{auth_url}}/auth/register"
+          }
+        },
+        {
+          "name": "Login admin",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.collectionVariables.set('access_token', data.access_token);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": "{{auth_url}}/auth/login"
+          }
+        },
+        {
+          "name": "Refresh session",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.access_token).to.be.a('string');", "pm.collectionVariables.set('access_token', data.access_token);"] } }],
+          "request": {
+            "method": "POST",
+            "url": "{{auth_url}}/auth/refresh"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Projects and keys",
+      "item": [
+        {
+          "name": "Create project",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const data = pm.response.json();", "pm.collectionVariables.set('project_id', data.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Demo Project\"\n}" },
+            "url": "{{project_url}}/projects"
+          }
+        },
+        {
+          "name": "List projects",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{project_url}}/projects"
+          }
+        },
+        {
+          "name": "Create active key",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const data = pm.response.json();", "pm.collectionVariables.set('api_key', data.api_key);", "pm.collectionVariables.set('key_id', data.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Active Key\"\n}" },
+            "url": "{{project_url}}/projects/{{project_id}}/keys"
+          }
+        },
+        {
+          "name": "Create key for revoke scenario",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const data = pm.response.json();", "pm.collectionVariables.set('revoked_api_key', data.api_key);", "pm.collectionVariables.set('revoked_key_id', data.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Revoke Key\"\n}" },
+            "url": "{{project_url}}/projects/{{project_id}}/keys"
+          }
+        },
+        {
+          "name": "List keys",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{project_url}}/projects/{{project_id}}/keys"
+          }
+        },
+        {
+          "name": "Internal key resolve",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.project_id).to.eql(pm.collectionVariables.get('project_id'));", "pm.expect(data.status).to.eql('active');"] } }],
+          "request": {
+            "method": "GET",
+            "url": "{{project_url}}/internal/keys/resolve?api_key={{api_key}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Organization members",
+      "item": [
+        {
+          "name": "List org members",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{auth_url}}/org/members"
+          }
+        },
+        {
+          "name": "Invite Dev to project",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const data = pm.response.json();", "pm.collectionVariables.set('invitation_token', data.invitation_token);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"postman_dev_{{$timestamp}}@example.com\",\n  \"role\": \"Dev\",\n  \"project_ids\": [\"{{project_id}}\"]\n}" },
+            "url": "{{auth_url}}/org/members/invite"
+          }
+        },
+        {
+          "name": "Accept invitation",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);", "const data = pm.response.json();", "pm.collectionVariables.set('dev_access_token', data.access_token);", "pm.collectionVariables.set('dev_user_id', data.user_id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{invitation_token}}\",\n  \"password\": \"password123\"\n}" },
+            "url": "{{auth_url}}/org/members/accept"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Limits routing and gateway",
+      "item": [
+        {
+          "name": "Set project limit",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.token_limit).to.eql(10000);"] } }],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"token_limit\": 10000,\n  \"period\": \"day\",\n  \"billing_model\": \"{{billing_model}}\",\n  \"sync_source\": \"tokens\"\n}" },
+            "url": "{{limits_url}}/limits/projects/{{project_id}}"
+          }
+        },
+        {
+          "name": "Get project limit",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.scope_id).to.eql(pm.collectionVariables.get('project_id'));", "pm.expect(data.billing_model).to.eql(pm.collectionVariables.get('billing_model'));" ] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{limits_url}}/limits/projects/{{project_id}}"
+          }
+        },
+        {
+          "name": "Set project fallback routing",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.fallback_model_id).to.eql(pm.collectionVariables.get('fallback_model'));" ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"fallback_model_id\": \"{{fallback_model}}\"\n}" },
+            "url": "{{project_url}}/projects/{{project_id}}/routing"
+          }
+        },
+        {
+          "name": "Get route (internal)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.fallback_model).to.eql(pm.collectionVariables.get('fallback_model'));" ] } }],
+          "request": {
+            "method": "GET",
+            "url": "{{catalog_url}}/internal/route?model={{billing_model}}&project_id={{project_id}}"
+          }
+        },
+        {
+          "name": "Internal limits check",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data).to.have.property('allowed');"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"org_id\": \"{{org_id}}\",\n  \"project_id\": \"{{project_id}}\",\n  \"key_id\": \"{{key_id}}\",\n  \"tokens\": 1\n}" },
+            "url": "{{limits_url}}/internal/limits/check"
+          }
+        },
+        {
+          "name": "Gateway completion with active key",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data).to.have.property('choices');"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"model\": \"mock-fast\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"Postman gateway check\"}]\n}" },
+            "url": "{{gateway_url}}/v1/chat/completions"
+          }
+        },
+        {
+          "name": "Revoke key for negative check",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{project_url}}/projects/{{project_id}}/keys/{{revoked_key_id}}/revoke"
+          }
+        },
+        {
+          "name": "Gateway completion with revoked key (negative)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(401);", "const data = pm.response.json();", "pm.expect(data.code).to.eql('revoked_api_key');"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{revoked_api_key}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"model\": \"mock-fast\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"must fail\"}]\n}" },
+            "url": "{{gateway_url}}/v1/chat/completions"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Catalog and providers",
+      "item": [
+        {
+          "name": "Catalog models",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": { "method": "GET", "url": "{{catalog_url}}/catalog/models" }
+        },
+        {
+          "name": "Providers status refresh",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');", "if (data.items.length > 0) { pm.expect(data.items[0]).to.have.property('checked_at'); }"] } }],
+          "request": { "method": "GET", "url": "{{catalog_url}}/catalog/providers/status?refresh=1" }
+        }
+      ]
+    },
+    {
+      "name": "06 Analytics and reports",
+      "item": [
+        {
+          "name": "Usage by model (project scope)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/analytics/usage?group_by=model&scope=project&project_id={{project_id}}"
+          }
+        },
+        {
+          "name": "Timeseries input tokens",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/analytics/timeseries?metric=input_tokens&bucket=day&scope=project&project_id={{project_id}}"
+          }
+        },
+        {
+          "name": "Technical logs (project scope)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/logs/technical?scope=project&project_id={{project_id}}&limit=50"
+          }
+        },
+        {
+          "name": "Audit list (project scope)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const data = pm.response.json();", "pm.expect(data.items).to.be.an('array');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/audit?scope=project&project_id={{project_id}}&limit=50"
+          }
+        },
+        {
+          "name": "Export usage CSV",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const raw = pm.response.text();", "pm.expect(raw).to.include('day,project_id,model');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/reports/csv/usage?scope=project&project_id={{project_id}}"
+          }
+        },
+        {
+          "name": "Export audit CSV",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const raw = pm.response.text();", "pm.expect(raw).to.include('created_at,actor_user_id,action');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/reports/csv/audit?scope=project&project_id={{project_id}}"
+          }
+        },
+        {
+          "name": "Export logs CSV",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(200);", "const raw = pm.response.text();", "pm.expect(raw).to.include('created_at,request_id,project_id');"] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{analytics_url}}/reports/csv/logs?scope=project&project_id={{project_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Internal ingest",
+      "item": [
+        {
+          "name": "Internal audit ingest",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"org_id\": \"{{org_id}}\",\n  \"project_id\": \"{{project_id}}\",\n  \"api_key_id\": \"{{key_id}}\",\n  \"actor_user_id\": \"{{admin_user_id}}\",\n  \"action\": \"postman.audit.event\",\n  \"object_type\": \"postman\",\n  \"object_id\": \"{{project_id}}\",\n  \"details\": {\"source\": \"postman\"}\n}"
+            },
+            "url": "{{analytics_url}}/internal/audit/event"
+          }
+        },
+        {
+          "name": "Internal usage ingest",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.response.to.have.status(201);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"org_id\": \"{{org_id}}\",\n  \"project_id\": \"{{project_id}}\",\n  \"api_key_id\": \"{{key_id}}\",\n  \"requested_model\": \"gpt-5.4-mini\",\n  \"effective_model\": \"mock-fast\",\n  \"model\": \"mock-fast\",\n  \"input_tokens\": 10,\n  \"output_tokens\": 20,\n  \"total_tokens\": 30,\n  \"estimated_cost\": 0\n}"
+            },
+            "url": "{{analytics_url}}/internal/usage/record"
+          }
+        }
+      ]
+    }
+  ]
+}

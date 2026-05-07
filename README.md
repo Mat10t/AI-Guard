@@ -36,6 +36,7 @@
 - `make integration` — integration smoke/API-тесты
 - `make e2e` — критические e2e-сценарии MVP
 - `make smoke` — shell smoke runner (register -> project -> key -> gateway -> limit -> revoke)
+- `make postman` — запуск Postman-коллекции через Newman (если установлен `newman`)
 - `make build` — сборка сервисов
 - `make up` — запуск окружения
 - `make down` — остановка окружения
@@ -63,6 +64,11 @@
 - `RUN_INTEGRATION=1` и `RUN_E2E=1` выставляются через `make integration` и `make e2e`.
 - Для проверки Kafka в e2e: `KAFKA_BROKERS=localhost:19092` (по умолчанию уже так).
 - Если нужно временно выключить Kafka-ассерты в e2e: `VERIFY_KAFKA_EVENTS=0 make e2e`.
+
+## Postman collections
+- Коллекции для API-задач: `postman/`.
+- Документация по импорту/запуску: `postman/README.md`.
+- Локальный запуск через Newman: `make postman`.
 
 ## Python examples
 - Примеры клиентской интеграции находятся в `examples/python`.
