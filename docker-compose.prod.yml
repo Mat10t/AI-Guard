@@ -1,0 +1,191 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-llm_gateway}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-llm_gateway}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.7.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  auth-org-service:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/auth-org-service:${IMAGE_TAG:-latest}
+    environment:
+      SERVICE_NAME: auth-org-service
+      HTTP_ADDR: :8081
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-168h}
+      AUDIT_SERVICE_URL: http://audit-analytics-service:8085
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${AUTH_PORT:-8081}:8081"
+    restart: unless-stopped
+
+  project-key-service:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/project-key-service:${IMAGE_TAG:-latest}
+    environment:
+      SERVICE_NAME: project-key-service
+      HTTP_ADDR: :8082
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      AUDIT_SERVICE_URL: http://audit-analytics-service:8085
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${PROJECT_PORT:-8082}:8082"
+    restart: unless-stopped
+
+  limits-service:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/limits-service:${IMAGE_TAG:-latest}
+    environment:
+      SERVICE_NAME: limits-service
+      HTTP_ADDR: :8083
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      AUDIT_SERVICE_URL: http://audit-analytics-service:8085
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${LIMITS_PORT:-8083}:8083"
+    restart: unless-stopped
+
+  provider-catalog-service:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/provider-catalog-service:${IMAGE_TAG:-latest}
+    environment:
+      SERVICE_NAME: provider-catalog-service
+      HTTP_ADDR: :8084
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_URL: ${OPENAI_API_URL:-https://api.openai.com/v1/chat/completions}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_URL: ${GEMINI_API_URL:-https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${CATALOG_PORT:-8084}:8084"
+    restart: unless-stopped
+
+  audit-analytics-service:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/audit-analytics-service:${IMAGE_TAG:-latest}
+    environment:
+      SERVICE_NAME: audit-analytics-service
+      HTTP_ADDR: :8085
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ANALYTICS_PORT:-8085}:8085"
+    restart: unless-stopped
+
+  api-gateway:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/api-gateway:${IMAGE_TAG:-latest}
+    environment:
+      SERVICE_NAME: api-gateway
+      HTTP_ADDR: :8080
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_URL: ${OPENAI_API_URL:-https://api.openai.com/v1/chat/completions}
+      PROJECT_KEY_SERVICE_URL: http://project-key-service:8082
+      LIMITS_SERVICE_URL: http://limits-service:8083
+      PROVIDER_CATALOG_URL: http://provider-catalog-service:8084
+      AUDIT_SERVICE_URL: http://audit-analytics-service:8085
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      project-key-service:
+        condition: service_started
+      limits-service:
+        condition: service_started
+      provider-catalog-service:
+        condition: service_started
+      audit-analytics-service:
+        condition: service_started
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  frontend:
+    image: ${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/frontend:${IMAGE_TAG:-latest}
+    environment:
+      GATEWAY_SERVICE_URL: http://api-gateway:8080
+      AUTH_SERVICE_URL: http://auth-org-service:8081
+      PROJECT_SERVICE_URL: http://project-key-service:8082
+      LIMITS_SERVICE_URL: http://limits-service:8083
+      CATALOG_SERVICE_URL: http://provider-catalog-service:8084
+      ANALYTICS_SERVICE_URL: http://audit-analytics-service:8085
+    depends_on:
+      api-gateway:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-3001}:3001"
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+
+networks:
+  default:
+    name: llm_gateway_prod
