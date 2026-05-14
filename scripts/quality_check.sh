@@ -28,23 +28,19 @@ if ! ${GO_BIN} vet ./... >"${vet_log}" 2>&1; then
   status=1
 fi
 
+vuln_exit=0
 if command -v govulncheck >/dev/null 2>&1; then
-  if ! govulncheck -format json ./... >"${vuln_log}" 2>&1; then
-    vuln_status="FAIL"
-    status=1
-  fi
+  govulncheck -format json ./... >"${vuln_log}" 2>&1 || vuln_exit=$?
 else
-  if ! ${GO_BIN} run golang.org/x/vuln/cmd/govulncheck@latest -format json ./... >"${vuln_log}" 2>&1; then
-    vuln_status="FAIL"
-    status=1
-  fi
+  ${GO_BIN} run golang.org/x/vuln/cmd/govulncheck@latest -format json ./... >"${vuln_log}" 2>&1 || vuln_exit=$?
 fi
 
-if [[ "${vuln_status}" != "FAIL" ]]; then
-  vuln_findings="$(grep -c '"finding"' "${vuln_log}" || true)"
-  if [[ "${vuln_findings}" != "0" ]]; then
-    vuln_status="WARN (${vuln_findings} findings)"
-  fi
+vuln_findings="$(grep -c '"finding"' "${vuln_log}" || true)"
+if [[ "${vuln_findings}" != "0" ]]; then
+  vuln_status="WARN (${vuln_findings} findings)"
+elif [[ "${vuln_exit}" != "0" ]]; then
+  vuln_status="FAIL"
+  status=1
 fi
 
 if ! ${GO_BIN} test ./... -coverprofile=coverage.out >"${test_log}" 2>&1; then
