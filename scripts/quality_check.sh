@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACTS_DIR="${ROOT_DIR}/docs/reports/artifacts"
 REPORT_FILE="${ROOT_DIR}/docs/reports/quality-latest.md"
 GO_BIN="${GO_BIN:-go}"
+GOVULNCHECK_PACKAGE="${GOVULNCHECK_PACKAGE:-golang.org/x/vuln/cmd/govulncheck@v1.1.4}"
 
 mkdir -p "${ARTIFACTS_DIR}"
 
@@ -28,23 +29,19 @@ if ! ${GO_BIN} vet ./... >"${vet_log}" 2>&1; then
   status=1
 fi
 
+vuln_exit=0
 if command -v govulncheck >/dev/null 2>&1; then
-  if ! govulncheck -format json ./... >"${vuln_log}" 2>&1; then
-    vuln_status="FAIL"
-    status=1
-  fi
+  govulncheck -format json ./... >"${vuln_log}" 2>&1 || vuln_exit=$?
 else
-  if ! ${GO_BIN} run golang.org/x/vuln/cmd/govulncheck@latest -format json ./... >"${vuln_log}" 2>&1; then
-    vuln_status="FAIL"
-    status=1
-  fi
+  ${GO_BIN} run "${GOVULNCHECK_PACKAGE}" -format json ./... >"${vuln_log}" 2>&1 || vuln_exit=$?
 fi
 
-if [[ "${vuln_status}" != "FAIL" ]]; then
-  vuln_findings="$(grep -c '"finding"' "${vuln_log}" || true)"
-  if [[ "${vuln_findings}" != "0" ]]; then
-    vuln_status="WARN (${vuln_findings} findings)"
-  fi
+vuln_findings="$(grep -c '"finding"' "${vuln_log}" || true)"
+if [[ "${vuln_findings}" != "0" ]]; then
+  vuln_status="WARN (${vuln_findings} findings)"
+elif [[ "${vuln_exit}" != "0" ]]; then
+  vuln_status="FAIL"
+  status=1
 fi
 
 if ! ${GO_BIN} test ./... -coverprofile=coverage.out >"${test_log}" 2>&1; then
@@ -81,4 +78,16 @@ EOF
 popd >/dev/null
 
 echo "Quality report written to ${REPORT_FILE}"
+if [[ "${status}" != "0" ]]; then
+  echo "Quality gate failed. Report:"
+  cat "${REPORT_FILE}"
+
+  for log in "${vet_log}" "${vuln_log}" "${test_log}"; do
+    if [[ -s "${log}" ]]; then
+      echo
+      echo "Last lines from ${log##${ROOT_DIR}/}:"
+      tail -n 80 "${log}" || true
+    fi
+  done
+fi
 exit ${status}

@@ -304,11 +304,9 @@ func TestMiddleware_ClaimsInContext(t *testing.T) {
 	})
 
 	mw := Middleware(testSecret)
-	mw(handler).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", func() *http.Request {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Authorization", "Bearer "+token)
-		return req
-	}()))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	mw(handler).ServeHTTP(httptest.NewRecorder(), req)
 
 	if capturedClaims == nil {
 		t.Fatal("claims were not captured")

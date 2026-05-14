@@ -1,0 +1,310 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - feature/ci-cd
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.23.0"
+  NODE_VERSION: "22"
+  GOVULNCHECK_VERSION: "v1.1.4"
+
+jobs:
+  checks:
+    name: Quality, Tests, Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Install govulncheck
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run backend quality gate
+        run: make quality
+
+      - name: Run backend tests
+        run: make test
+
+      - name: Build backend services
+        run: make build
+
+      - name: Build frontend
+        run: npm --prefix frontend run build
+
+      - name: Validate Docker Compose config
+        run: docker compose config --quiet
+
+      - name: Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            docs/reports/quality-latest.md
+            docs/reports/artifacts/*.log
+            coverage.out
+          if-no-files-found: ignore
+
+  container-smoke:
+    name: Container Build and Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: checks
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install smoke dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Build and start local stack
+        run: |
+          docker compose up -d --build \
+            postgres \
+            redis \
+            kafka \
+            auth-org-service \
+            project-key-service \
+            limits-service \
+            provider-catalog-service \
+            audit-analytics-service \
+            api-gateway \
+            frontend
+
+      - name: Wait for API health checks
+        run: |
+          for url in \
+            http://localhost:8080/healthz \
+            http://localhost:8081/healthz \
+            http://localhost:8082/healthz \
+            http://localhost:8083/healthz \
+            http://localhost:8084/healthz \
+            http://localhost:8085/healthz \
+            http://localhost:3001
+          do
+            echo "Waiting for ${url}"
+            for attempt in {1..60}; do
+              if curl -fsS "${url}" >/dev/null; then
+                echo "OK ${url}"
+                break
+              fi
+              if [[ "${attempt}" == "60" ]]; then
+                echo "Timed out waiting for ${url}" >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Run smoke flow
+        run: make smoke
+
+      - name: Run integration tests
+        run: make integration
+
+      - name: Run e2e tests
+        run: make e2e
+
+      - name: Show compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop local stack
+        if: always()
+        run: docker compose down -v
+
+  publish-images:
+    name: Publish Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - checks
+      - container-smoke
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image namespace
+        run: echo "IMAGE_NAMESPACE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push service images
+        run: |
+          set -euo pipefail
+          services=(
+            auth-org-service
+            project-key-service
+            limits-service
+            provider-catalog-service
+            audit-analytics-service
+            api-gateway
+          )
+
+          for service in "${services[@]}"; do
+            docker build \
+              -f "services/${service}/Dockerfile" \
+              -t "${IMAGE_NAMESPACE}/${service}:${GITHUB_SHA}" \
+              -t "${IMAGE_NAMESPACE}/${service}:latest" \
+              .
+            docker push "${IMAGE_NAMESPACE}/${service}:${GITHUB_SHA}"
+            docker push "${IMAGE_NAMESPACE}/${service}:latest"
+          done
+
+          docker build \
+            -f frontend/Dockerfile \
+            -t "${IMAGE_NAMESPACE}/frontend:${GITHUB_SHA}" \
+            -t "${IMAGE_NAMESPACE}/frontend:latest" \
+            ./frontend
+          docker push "${IMAGE_NAMESPACE}/frontend:${GITHUB_SHA}"
+          docker push "${IMAGE_NAMESPACE}/frontend:latest"
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: publish-images
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare deploy metadata
+        run: |
+          echo "IMAGE_NAMESPACE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "DEPLOY_PATH=${DEPLOY_PATH:-/opt/llm-gateway}" >> "$GITHUB_ENV"
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Validate deploy secrets
+        run: |
+          test -n "${DEPLOY_HOST}" || { echo "DEPLOY_HOST secret is required" >&2; exit 1; }
+          test -n "${DEPLOY_USER}" || { echo "DEPLOY_USER secret is required" >&2; exit 1; }
+          test -n "${DEPLOY_SSH_KEY}" || { echo "DEPLOY_SSH_KEY secret is required" >&2; exit 1; }
+          test -n "${DEPLOY_ENV_FILE}" || { echo "DEPLOY_ENV_FILE secret is required" >&2; exit 1; }
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Copy deployment files
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}/db'"
+          scp -i ~/.ssh/deploy_key docker-compose.prod.yml "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/docker-compose.prod.yml"
+          scp -i ~/.ssh/deploy_key db/init.sql "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/db/init.sql"
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+
+      - name: Deploy over SSH
+        run: |
+          printf '%s\n' "${DEPLOY_ENV_FILE}" > deploy.env
+          {
+            echo "IMAGE_NAMESPACE=${IMAGE_NAMESPACE}"
+            echo "IMAGE_TAG=${GITHUB_SHA}"
+          } >> deploy.env
+          scp -i ~/.ssh/deploy_key deploy.env "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/.env"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' GHCR_USERNAME='${GHCR_USERNAME}' GHCR_TOKEN='${GHCR_TOKEN}' bash -s" <<'REMOTE'
+            set -euo pipefail
+            cd "${DEPLOY_PATH}"
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+            docker compose --env-file .env -f docker-compose.prod.yml pull
+            docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose --env-file .env -f docker-compose.prod.yml ps
+          REMOTE
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify deployment
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' bash -s" <<'REMOTE'
+            set -euo pipefail
+            cd "${DEPLOY_PATH}"
+            set -a
+            . ./.env
+            set +a
+            for url in \
+              http://localhost:${GATEWAY_PORT:-8080}/healthz \
+              http://localhost:${AUTH_PORT:-8081}/healthz \
+              http://localhost:${PROJECT_PORT:-8082}/healthz \
+              http://localhost:${LIMITS_PORT:-8083}/healthz \
+              http://localhost:${CATALOG_PORT:-8084}/healthz \
+              http://localhost:${ANALYTICS_PORT:-8085}/healthz \
+              http://localhost:${FRONTEND_PORT:-3001}
+            do
+              echo "Checking ${url}"
+              for attempt in {1..60}; do
+                if curl -fsS "${url}" >/dev/null; then
+                  echo "OK ${url}"
+                  break
+                fi
+                if [[ "${attempt}" == "60" ]]; then
+                  docker compose --env-file .env -f docker-compose.prod.yml logs --no-color
+                  exit 1
+                fi
+                sleep 2
+              done
+            done
+          REMOTE
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}

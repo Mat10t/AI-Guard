@@ -9,6 +9,10 @@ This is configured in GitHub repository settings (not in source code).
    - `Require a pull request before merging`
    - `Require approvals` (set to `1`)
    - `Dismiss stale pull request approvals when new commits are pushed` (recommended)
+   - `Require status checks to pass before merging`
+   - Required status checks:
+     - `Quality, Tests, Build`
+     - `Container Build and Smoke`
    - `Require linear history` (recommended with squash merge)
    - `Do not allow bypassing the above settings` (recommended)
 4. Disable direct pushes to `main` for regular contributors.
